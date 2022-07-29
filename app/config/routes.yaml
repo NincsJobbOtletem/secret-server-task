@@ -9,5 +9,11 @@ kernel:
 app_secret_hash:
     path: /secret/hash
     controller: App\Controller\SecretHashController::hash
-
-
+    
+        
+# homepage:
+#     path: /
+#     controller: Symfony\Bundle\FrameworkBundle\Controller\RedirectController::urlRedirectAction
+#     defaults:
+#         path: /Secret
+#         permanent: false

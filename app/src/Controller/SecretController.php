@@ -28,37 +28,51 @@ class SecretController extends AbstractController
     public function new(ManagerRegistry $doctrine, Request $request): Response
     {
 
-        $secret = new Secret(); 
+        $secret = new Secret();
         $time = new \DateTime();
         $time2 = new \DateTime();
 
-        // request the secret Text data from post and generate a hash of it
+        // Type of header makeing from cutting first of Accept header
+        $typeOfHeaderAccept = substr($request->headers->get('Accept'), 12);
+
+        // Request the secret Text data from post and generate a hash of it
         $secretText = $request->request->get('secretText');
         $hash =  hash('sha256', $secretText);
 
-        // request the expireAfter data from post and add time to current date
+        // Request the expireAfter data from post and add time to current date
         $expireAfter = $request->request->get('expireAfter');
         $expiresTime = $time->add(new DateInterval('PT' . $expireAfter . 'M'));
         $entityManager = $doctrine->getManager();
 
-        // Setting datas
+        // Setting datas to $secret
         $secret->setSecretText($secretText);
         $secret->setHash($hash . '');
         $secret->setRemainingViews($request->request->get('remainingViews'));
-
         $secret->setCreatedAt($time2);
         $secret->setExpiresAt($expiresTime);
 
-        //push data what in secret to database
-        $entityManager->persist($secret);
-        $entityManager->flush();
 
-        //return succes message
-        return $this->json('Created new secret successfully with id ' . $secret->getId());
+
+        if ($secret->getSecretText() == "" || $secret->getRemainingViews() == 0) {
+            $secret = 'Invalid input ' . header("Status: 404 Invalid input");
+
+            $secretController = new SecretController();
+
+            return $secretController->resposeSecretByHeaderAcceptType($secret, $typeOfHeaderAccept);
+        } else {
+            //Push data what in secret to database
+            $entityManager->persist($secret);
+            $entityManager->flush();
+
+            $secretController = new SecretController();
+
+            header("Status: 200 successful operation");
+            return $secretController->resposeSecretByHeaderAcceptType($secret, $typeOfHeaderAccept);
+        }
     }
 
     /**
-     * @Route("/secret/{hash}", name="secret_show", methods={"GET"})
+     * @Route("/secret/{hash}", name="secret_hash", methods={"GET"})
      */
 
     // Get secret datas
@@ -66,8 +80,12 @@ class SecretController extends AbstractController
     {
         $entityManager = $doctrine->getManager();
 
+        // Type of header makeing from cutting first of Accept header
+        $typeOfHeaderAccept = substr($request->headers->get('Accept'), 12);
+
         $secret = $doctrine->getRepository(Secret::class)->findOneBy(['hash' => $hash]);
 
+        //Date expire calculator
         $timenow = new \DateTime();
         $dateExpiresAt = $secret->getExpiresAt();
 
@@ -75,47 +93,28 @@ class SecretController extends AbstractController
         $views = $secret->getRemainingViews();
         $secret->setRemainingViews($views - 1);
 
-        if (!$secret) {
+        if ($timenow > $dateExpiresAt || $views <= 0 ) {
+            $secret = 'Secret not found ' . header("Status: 404 Secret not found");
 
-            return $this->json('Invalid input ' . $hash, 404);
+            $secretController = new SecretController();
+
+            return $secretController->resposeSecretByHeaderAcceptType($secret, $typeOfHeaderAccept);
+        } else {
+            //Push changed $secret datas to database
+            $entityManager->persist($secret);
+            $entityManager->flush();
+
+            $secretController = new SecretController();
+
+            header("Status: 200 successful operation");
+            return $secretController->resposeSecretByHeaderAcceptType($secret, $typeOfHeaderAccept);
         }
-        if ($timenow > $dateExpiresAt) {
-
-            return $this->json('im out of time! ' . $hash, 404);
-        }
-        if ($views <= 0) {
-
-            return $this->json('Youre out of touch! ' . $hash, 404);
-        }
-
-        //Push change view data to database
-        $entityManager->persist($secret);
-        $entityManager->flush();
-
-        //Get the header accept input
-        $headerAccept = $request->headers->get('Accept');
-
-        
-        if ($headerAccept == "*/*") {
-            return $this->json('invalid header input');
-        }
-        //cutted the first 12 letter of "application/json" to get the end
-        $typeOfData = substr($headerAccept, 12);
-
-        $secretController = new SecretController();
-
-        $serializedSecret = $secretController->typeOfAcceptHeader($secret, $typeOfData);
-
-        $response = new Response($serializedSecret);
-        $response->headers->set('Content-Type', $typeOfData);
-
-        return $response;
     }
     // Header accept input check
-    public function typeOfAcceptHeader($secret, $typeOfData)
+    public function resposeSecretByHeaderAcceptType($secret, $typeOfHeaderAccept)
     {
-        switch ($typeOfData) {
-            case $typeOfData == "json":
+        switch ($typeOfHeaderAccept) {
+            case $typeOfHeaderAccept == "json":
                 $encoder2 = new JsonEncoder();
                 $normalizer = new GetSetMethodNormalizer();
                 $serializer = new Serializer(
@@ -132,10 +131,13 @@ class SecretController extends AbstractController
                     ['hash', 'secretText', 'createdAt', 'expiresAt', 'remainingViews']]
                 );
 
-                return $serializedSecret;
+                $response = new Response($serializedSecret);
+                $response->headers->set('Content-Type', $typeOfHeaderAccept);
+
+                return $response;
                 break;
 
-            case $typeOfData == "xml":
+            case $typeOfHeaderAccept == "xml":
                 $encoder = new XmlEncoder();
                 $normalizer = new GetSetMethodNormalizer();
 
@@ -153,12 +155,14 @@ class SecretController extends AbstractController
                     ['attributes' =>
                     ['hash', 'secretText', 'createdAt', 'expiresAt', 'remainingViews']]
                 );
+                $response = new Response($serializedSecret);
+                $response->headers->set('Content-Type', $typeOfHeaderAccept);
 
-                return $serializedSecret;
+                return $response;
                 break;
 
-            case $typeOfData == "yaml":
-                echo "Upcoming   ";
+            case $typeOfHeaderAccept == "yaml":
+                $secret = "Upcoming   ";
 
                 $encoder = new YamlEncoder();
                 $normalizer = new GetSetMethodNormalizer();
@@ -178,7 +182,10 @@ class SecretController extends AbstractController
                     ['hash', 'secretText', 'createdAt', 'expiresAt', 'remainingViews']]
                 );
 
-                return $serializedSecret;
+                $response = new Response($serializedSecret);
+                $response->headers->set('Content-Type', $typeOfHeaderAccept);
+
+                return $response;
                 break;
         }
     }
