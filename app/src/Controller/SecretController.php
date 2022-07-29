@@ -1,5 +1,5 @@
 <?php
-
+// src/Controller/SecretController.php
 namespace App\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -8,97 +8,70 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpFoundation\Request;
 use Doctrine\Persistence\ManagerRegistry;
 use App\Entity\Secret;
-use DateTime;
 use DateInterval;
-use Symfony\Component\VarDumper\Cloner\Data;
+use Symfony\Component\Serializer\Serializer;
+use Symfony\Component\Serializer\Encoder\JsonEncoder;
+use Symfony\Component\Serializer\Encoder\XmlEncoder;
+use Symfony\Component\Serializer\Encoder\YamlEncoder;
+use Symfony\Component\Serializer\Normalizer\GetSetMethodNormalizer;
+use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
 
-// /**
-//  * @Route("/api", name="api_")
-//  */
+// Secret Controller class
 class SecretController extends AbstractController
 {
-    /**
-     * @Route("/secret", name="secret_index", methods={"GET"})
-     */
-    // public function index(ManagerRegistry $doctrine): Response
-    // {
-    //     $secrets = $doctrine
-    //         ->getRepository(Secret::class)
-    //         ->findAll();
-
-    //     $data = [];
-
-    //     foreach ($secrets as $secret) {
-    //         $data[] = [
-    //             'id' => $secret->getId(),
-    //             'hash' => $secret->getHash(),
-    //             'secretText' => $secret->getSecretText(),
-    //             'expiresAt' => $secret->getExpiresAt(),
-    //             'remainingViews' => $secret->getRemainingViews(),
-    //             'createdAt' => $secret->getCreatedAt(),
-    //         ];
-    //     }
-
-
-    //     return $this->json($data);
-    // }
 
     /**
      * @Route("/secret", name="secret_new", methods={"POST"})
      */
+
+    // New secret adding 
     public function new(ManagerRegistry $doctrine, Request $request): Response
     {
 
-        $secret = new Secret();
-
+        $secret = new Secret(); 
         $time = new \DateTime();
         $time2 = new \DateTime();
 
-        $message = $request->request->get('secretText');
-        $hash =  hash('sha256', $message);
+        // request the secret Text data from post and generate a hash of it
+        $secretText = $request->request->get('secretText');
+        $hash =  hash('sha256', $secretText);
+
+        // request the expireAfter data from post and add time to current date
         $expireAfter = $request->request->get('expireAfter');
-
         $expiresTime = $time->add(new DateInterval('PT' . $expireAfter . 'M'));
-
-
         $entityManager = $doctrine->getManager();
 
-
-        // $secret->setHash($request->request->get('hash'));
-        $secret->setSecretText($request->request->get('secretText'));
+        // Setting datas
+        $secret->setSecretText($secretText);
         $secret->setHash($hash . '');
         $secret->setRemainingViews($request->request->get('remainingViews'));
-        // $secret->setCreatedAt(new \DateTime($time2->format('H:i:s Y-m-d')));
+
         $secret->setCreatedAt($time2);
         $secret->setExpiresAt($expiresTime);
 
-        // echo($secret->setCreatedAt());
-
-        // var_dump($request->request->get('expiresAt'));
-        // $time = new \DateTime();
-        // echo $time->format('H:i:s \O\n Y-m-d');
-
+        //push data what in secret to database
         $entityManager->persist($secret);
         $entityManager->flush();
 
+        //return succes message
         return $this->json('Created new secret successfully with id ' . $secret->getId());
     }
 
     /**
      * @Route("/secret/{hash}", name="secret_show", methods={"GET"})
      */
-    public function show(string $hash, ManagerRegistry $doctrine): Response
+
+    // Get secret datas
+    public function show(string $hash, ManagerRegistry $doctrine, Request $request): Response
     {
         $entityManager = $doctrine->getManager();
-        
-        
 
         $secret = $doctrine->getRepository(Secret::class)->findOneBy(['hash' => $hash]);
-
 
         $timenow = new \DateTime();
         $dateExpiresAt = $secret->getExpiresAt();
 
+        //View counter calculator
         $views = $secret->getRemainingViews();
         $secret->setRemainingViews($views - 1);
 
@@ -114,70 +87,99 @@ class SecretController extends AbstractController
 
             return $this->json('Youre out of touch! ' . $hash, 404);
         }
-        
-        
 
-        
+        //Push change view data to database
         $entityManager->persist($secret);
         $entityManager->flush();
 
+        //Get the header accept input
+        $headerAccept = $request->headers->get('Accept');
 
         
-        
-        $data =  [
+        if ($headerAccept == "*/*") {
+            return $this->json('invalid header input');
+        }
+        //cutted the first 12 letter of "application/json" to get the end
+        $typeOfData = substr($headerAccept, 12);
 
-            'hash' => $secret->getHash(),
-            'secretText' => $secret->getSecretText(),
-            'createdAt' => $secret->getCreatedAt(),
-            'expiresAt' => $secret->getExpiresAt(),
-            'remainingViews' => $secret->getRemainingViews(),
-        ];
+        $secretController = new SecretController();
 
-        return $this->json($data);
+        $serializedSecret = $secretController->typeOfAcceptHeader($secret, $typeOfData);
+
+        $response = new Response($serializedSecret);
+        $response->headers->set('Content-Type', $typeOfData);
+
+        return $response;
     }
+    // Header accept input check
+    public function typeOfAcceptHeader($secret, $typeOfData)
+    {
+        switch ($typeOfData) {
+            case $typeOfData == "json":
+                $encoder2 = new JsonEncoder();
+                $normalizer = new GetSetMethodNormalizer();
+                $serializer = new Serializer(
+                    array(
+                        new DateTimeNormalizer(array('datetime_format' => 'Y-m-d\TH:i:sp')),
+                        $normalizer
+                    ),
+                    [$encoder2]
+                );
+                $serializedSecret = $serializer->serialize(
+                    $secret,
+                    'json',
+                    ['attributes' =>
+                    ['hash', 'secretText', 'createdAt', 'expiresAt', 'remainingViews']]
+                );
 
-    // /**
-    //  * @Route("/secret/{id}", name="secret_edit", methods={"PUT"})
-    //  */
-    // public function edit(Request $request, int $id, ManagerRegistry $doctrine): Response
-    // {
-    //     $entityManager = $doctrine->getManager();
-    //     $secret = $entityManager->getRepository(Secret::class)->find($id);
+                return $serializedSecret;
+                break;
 
-    //     if (!$secret) {
-    //         return $this->json('No secret found for id' . $id, 404);
-    //     }
+            case $typeOfData == "xml":
+                $encoder = new XmlEncoder();
+                $normalizer = new GetSetMethodNormalizer();
 
-    //     $secret->setHash($request->request->get('hash'));
-    //     $secret->setSecretText($request->request->get('secretText'));
-    //     $secret->setRemainingViews($request->request->get('remainingViews'));
-    //     $entityManager->flush();
+                $serializer = new Serializer(
+                    array(
+                        new DateTimeNormalizer(array('datetime_format' => 'Y-m-d\TH:i:sp')),
+                        $normalizer
+                    ),
+                    [$encoder]
 
-    //     $data =  [
-    //         'id' => $secret->getId(),
-    //         'hash' => $secret->getHash(),
-    //         'secretText' => $secret->getSecretText(),
-    //         'remainingViews' => $secret->getRemainingViews(),
-    //     ];
+                );
+                $serializedSecret = $serializer->serialize(
+                    $secret,
+                    'xml',
+                    ['attributes' =>
+                    ['hash', 'secretText', 'createdAt', 'expiresAt', 'remainingViews']]
+                );
 
-    //     return $this->json($data);
-    // }
+                return $serializedSecret;
+                break;
 
-    // /**
-    //  * @Route("/secret/{id}", name="secret_delete", methods={"DELETE"})
-    //  */
-    // public function delete(int $id, ManagerRegistry $doctrine): Response
-    // {
-    //     $entityManager = $doctrine->getManager();
-    //     $secret = $entityManager->getRepository(Secret::class)->find($id);
+            case $typeOfData == "yaml":
+                echo "Upcoming   ";
 
-    //     if (!$secret) {
-    //         return $this->json('No secret found for id' . $id, 404);
-    //     }
+                $encoder = new YamlEncoder();
+                $normalizer = new GetSetMethodNormalizer();
 
-    //     $entityManager->remove($secret);
-    //     $entityManager->flush();
+                $serializer = new Serializer(
+                    array(
+                        new DateTimeNormalizer(array('datetime_format' => 'Y-m-d\TH:i:sp')),
+                        $normalizer
+                    ),
+                    [$encoder]
 
-    //     return $this->json('Deleted a secret successfully with id ' . $id);
-    // }
+                );
+                $serializedSecret = $serializer->serialize(
+                    $secret,
+                    'yaml',
+                    ['attributes' =>
+                    ['hash', 'secretText', 'createdAt', 'expiresAt', 'remainingViews']]
+                );
+
+                return $serializedSecret;
+                break;
+        }
+    }
 }
