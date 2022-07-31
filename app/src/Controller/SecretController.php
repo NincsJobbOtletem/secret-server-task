@@ -30,7 +30,7 @@ class SecretController extends AbstractController
 
         $secret = new Secret();
         $time = new \DateTime();
-        $time2 = new \DateTime();
+        $currentTime = new \DateTime();
 
     
         // Type of header makeing from cutting first of Accept header
@@ -40,13 +40,13 @@ class SecretController extends AbstractController
         $secretText = $request->request->get('secretText');
         
         
-        // Request the expireAfter data from post and add time to current date
+        // Request the expireAfter data from post 
         $expireAfter = $request->request->get('expireAfter');
         
         
         
     
-
+        //Error handling
         if ($secretText == "" || is_numeric($expireAfter) == false  || $request->request->get('remainingViews') == 0 || is_numeric($request->request->get('remainingViews')) == False ) {
             $secret = 'Invalid input ' . header("Status: 404 Invalid input");
 
@@ -54,19 +54,19 @@ class SecretController extends AbstractController
 
             return $secretController->resposeSecretByHeaderAcceptType($secret, $typeOfHeaderAccept);
         } else {
-
+            //add expiresTime to current date
             $expiresTime = $time->add(new DateInterval('PT' . $expireAfter . 'M'));
             $entityManager = $doctrine->getManager();
             
             // To get unique hash to identify the secret we generate it from all secret data
-            $hash = $secretText.$time2->format('Y-m-d\TH:i:sp').$expireAfter.$expiresTime->format('Y-m-d\TH:i:sp').$expireAfter;
+            $hash = $secretText.$currentTime->format('Y-m-d\TH:i:sp').$expireAfter.$expiresTime->format('Y-m-d\TH:i:sp').$expireAfter;
             $hash =  hash('sha1', $hash);
             
             // Setting datas to $secret
             $secret->setSecretText($secretText);
             $secret->setHash($hash . '');
             $secret->setRemainingViews($request->request->get('remainingViews'));
-            $secret->setCreatedAt($time2);
+            $secret->setCreatedAt($currentTime);
             $secret->setExpiresAt($expiresTime);
 
             //Push data what in secret to database
