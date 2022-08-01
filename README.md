@@ -2,9 +2,9 @@
 
 ## Megoldás
 Az API a 
-POST http://34.142.28.108/secret
+POST http://34.142.28.108/Secret
 és a
-GET http://34.142.28.108/secret/{hash} 
+GET http://34.142.28.108/Secret/{hash} 
 címen érhető el.
 
 ## Introduction
