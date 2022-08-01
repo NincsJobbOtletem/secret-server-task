@@ -21,11 +21,11 @@ class SecretController extends AbstractController
 {
 
     /**
-     * @Route("/secret", name="secret_new", methods={"POST"})
+     * @Route("/Secret", name="secret_addSecret", methods={"POST"})
      */
 
     // New secret adding 
-    public function new(ManagerRegistry $doctrine, Request $request): Response
+    public function addSecret(ManagerRegistry $doctrine, Request $request): Response
     {
 
         $secret = new Secret();
@@ -81,11 +81,11 @@ class SecretController extends AbstractController
     }
 
     /**
-     * @Route("/secret/{hash}", name="secret_hash", methods={"GET"})
+     * @Route("/Secret/{hash}", name="secret_getSecretByHash", methods={"GET"})
      */
 
     // Get secret datas
-    public function show(string $hash, ManagerRegistry $doctrine, Request $request): Response
+    public function getSecretByHash(string $hash, ManagerRegistry $doctrine, Request $request): Response
     {
         $entityManager = $doctrine->getManager();
 
