@@ -51,7 +51,7 @@ A docker compose fileba át tenni 80 ra a portot
 
 symfony/(binbash)
 symfony check:requirements
-composer require symfony/runtime
+composer require symfony/runtime  !!!!
 composer dump-autoload
 
 mysql

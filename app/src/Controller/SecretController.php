@@ -48,7 +48,7 @@ class SecretController extends AbstractController
     
         //Error handling
         if ($secretText == "" || is_numeric($expireAfter) == false  || $request->request->get('remainingViews') == 0 || is_numeric($request->request->get('remainingViews')) == False ) {
-            $secret = 'Invalid input ' . header("Status: 404 Invalid input");
+            $secret = 'Invalid input ' . header("Status: 405 Invalid input");
 
             $secretController = new SecretController();
 
