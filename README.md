@@ -5,7 +5,7 @@ Az API a
 POST http://34.142.28.108/secret
 és a
 GET http://34.142.28.108/secret/{hash} 
-érhető el.
+címen érhető el.
 
 ## Introduction
 Your task is to implement a secret server. The secret server can be used to store and share secrets
